@@ -31,6 +31,15 @@ jobs:
         run: |
           git clone --depth 1 -b denial/3.44.7-r1 https://github.com/denialwm/flutter.git /tmp/flutter
           echo "/tmp/flutter/bin" >> $GITHUB_PATH
+          
+          # Initialize flutter cache
+          /tmp/flutter/bin/flutter precache --linux
+          
+          # Pin declared Flutter version metadata so pubspec resolution succeeds
+          echo "3.44.7" > /tmp/flutter/version
+          mkdir -p /tmp/flutter/bin/cache
+          echo '{"frameworkVersion":"3.44.7","channel":"denial","repositoryUrl":"https://github.com/denialwm/flutter.git","frameworkRevision":"d728e61e7d835e02c453c70ae9523a40f6c03215","frameworkCommitDate":"2026-08-31 22:20:42 +0200","engineRevision":"denial-3.44.7-r1","dartSdkVersion":"3.4.4"}' > /tmp/flutter/bin/cache/flutter.version.json
+          
           /tmp/flutter/bin/flutter --version --suppress-analytics
 
       - name: Build Rust Compositor (deniald & denialctl)
