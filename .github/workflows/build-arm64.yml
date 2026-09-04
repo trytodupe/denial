@@ -22,29 +22,10 @@ jobs:
           sudo apt-get install -y \
             pkg-config libfontconfig1-dev libdrm-dev libgbm-dev \
             libegl-dev libinput-dev libseat-dev libudev-dev \
-            libxkbcommon-dev libpam0g-dev rtkit xwayland rsync curl jq
+            libxkbcommon-dev libpam0g-dev rtkit xwayland
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup Denial Flutter fork
-        run: |
-          git clone --depth 1 -b denial/3.44.7-r1 https://github.com/denialwm/flutter.git /tmp/flutter
-          echo "/tmp/flutter/bin" >> $GITHUB_PATH
-          
-          # Pin git tag inside flutter repository so flutter pub gets 3.44.7
-          git -C /tmp/flutter tag -f 3.44.7 HEAD
-          echo "3.44.7" > /tmp/flutter/version
-          
-          # Initialize flutter cache
-          /tmp/flutter/bin/flutter precache --linux
-          
-          # Re-apply version files after precache might clear them
-          echo "3.44.7" > /tmp/flutter/version
-          mkdir -p /tmp/flutter/bin/cache
-          echo '{"frameworkVersion":"3.44.7","channel":"denial","repositoryUrl":"https://github.com/denialwm/flutter.git","frameworkRevision":"d728e61e7d835e02c453c70ae9523a40f6c03215","frameworkCommitDate":"2026-08-31 22:20:42 +0200","engineRevision":"denial-3.44.7-r1","dartSdkVersion":"3.4.4"}' > /tmp/flutter/bin/cache/flutter.version.json
-          
-          /tmp/flutter/bin/flutter --version --suppress-analytics
 
       - name: Build Rust Compositor (deniald & denialctl)
         run: |
@@ -53,31 +34,8 @@ jobs:
           mkdir -p /tmp/denial-output/bin
           cp target/release/deniald target/release/denialctl /tmp/denial-output/bin/
 
-      - name: Build Dart Shell bundle
-        run: |
-          # Relax strict version requirement in pubspec.yaml if needed
-          sed -i 's/flutter: 3.44.7/flutter: ">=3.44.0"/' dart_shell/pubspec.yaml
-          
-          cd dart_shell
-          flutter pub get
-          flutter assemble \
-            --suppress-analytics \
-            -dTargetFile=lib/main.dart \
-            -dBuildMode=release \
-            -dTargetPlatform=linux-arm64 \
-            -dDartObfuscation=false \
-            -dTrackWidgetCreation=true \
-            -dTreeShakeIcons=true \
-            --output=/tmp/flutter-assembly \
-            release_bundle_linux-arm64_assets
-          
-          mkdir -p /tmp/denial-output/bundle/lib /tmp/denial-output/bundle/data
-          cp /tmp/flutter-assembly/lib/libapp.so /tmp/denial-output/bundle/lib/
-          cp -r /tmp/flutter-assembly/flutter_assets /tmp/denial-output/bundle/data/
-          cp /tmp/flutter/bin/cache/artifacts/engine/linux-arm64/icudtl.dat /tmp/denial-output/bundle/data/ || true
-
-      - name: Upload ARM64 Artifacts
+      - name: Upload ARM64 Binaries
         uses: actions/upload-artifact@v4
         with:
-          name: denial-aarch64-v0.3.1
+          name: denial-aarch64-v0.3.1-bin
           path: /tmp/denial-output/
