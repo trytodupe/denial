@@ -1,0 +1,67 @@
+name: Denial ARM64 build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show architecture
+        run: uname -m
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config libfontconfig1-dev libdrm-dev libgbm-dev \
+            libegl-dev libinput-dev libseat-dev libudev-dev \
+            libxkbcommon-dev libpam0g-dev rtkit xwayland rsync curl jq
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Denial Flutter fork
+        run: |
+          git clone --depth 1 -b denial/3.44.7-r1 https://github.com/denialwm/flutter.git /tmp/flutter
+          echo "/tmp/flutter/bin" >> $GITHUB_PATH
+          /tmp/flutter/bin/flutter --version --suppress-analytics
+
+      - name: Build Rust Compositor (deniald & denialctl)
+        run: |
+          cd compositor
+          cargo build --release --locked --features flutter --bin deniald --bin denialctl
+          mkdir -p /tmp/denial-output/bin
+          cp target/release/deniald target/release/denialctl /tmp/denial-output/bin/
+
+      - name: Build Dart Shell bundle
+        run: |
+          cd dart_shell
+          flutter pub get
+          flutter assemble \
+            --suppress-analytics \
+            -dTargetFile=lib/main.dart \
+            -dBuildMode=release \
+            -dTargetPlatform=linux-arm64 \
+            -dDartObfuscation=false \
+            -dTrackWidgetCreation=true \
+            -dTreeShakeIcons=true \
+            --output=/tmp/flutter-assembly \
+            release_bundle_linux-arm64_assets
+          
+          mkdir -p /tmp/denial-output/bundle/lib /tmp/denial-output/bundle/data
+          cp /tmp/flutter-assembly/lib/libapp.so /tmp/denial-output/bundle/lib/
+          cp -r /tmp/flutter-assembly/flutter_assets /tmp/denial-output/bundle/data/
+          cp /tmp/flutter/bin/cache/artifacts/engine/linux-arm64/icudtl.dat /tmp/denial-output/bundle/data/ || true
+
+      - name: Upload ARM64 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: denial-aarch64-v0.3.1
+          path: /tmp/denial-output/
